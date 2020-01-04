@@ -161,8 +161,7 @@ else()
 
 	add_executable(vk_playground 
 		"src/main.cpp" 
-		${VKPG_SOURCE}
-		${DEMO_PROJECT_FILES})
+		${VKPG_SOURCE})
 
 endif(MSVC)
 
