@@ -2,7 +2,7 @@
 #define TYPE_GLSL( a, b, c, d )
 #endif
 
-// glsl type, vk format type, c type, c type size, valid attribute type, uniform slots
+// type, format, c type, c array size, attribute flag, uniform slots
 
 // Scalars
 
