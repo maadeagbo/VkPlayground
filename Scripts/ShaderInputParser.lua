@@ -249,6 +249,11 @@ function ParseTextures(data)
 	local output = {cpp = {}, shader = {}, slot = {}}
 	local pdata = ExtractData(data)
 
+	local SplitInput = function(input)
+		local out = {}
+		return out
+	end
+
 	print(inspect(pdata))
 
 	return output
