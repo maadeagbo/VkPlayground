@@ -15,8 +15,10 @@ local DefaultFragData = {
 		float lumin_rec_709;
 	]]
 	,
-	image = [[
-		sampler2k,2048, 2048;
+	samplers = [[
+		sampler2k,2048,2048;
+	]],
+	images = [[
 		textures2k,2048,2048,16;
 	]],
 }

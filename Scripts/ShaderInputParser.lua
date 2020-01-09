@@ -143,6 +143,7 @@ function ExtractData(data)
 		if var_begin then
 			local var = data:sub(var_begin, var_end - var_begin + 1)
 			data = data:sub(var_end + 2)
+
 			var = var:gsub("\n", "")
 			var = var:gsub("\t", "")
 
@@ -242,19 +243,48 @@ function ParseUniforms(data)
 	return output
 end
 
-function ParseTextures(data)
+function ParseTextures(samplers, images)
 	print("--------------------------------------------------------")
-	print("Parsing textures...")
 
 	local output = {cpp = {}, shader = {}, slot = {}}
-	local pdata = ExtractData(data)
 
 	local SplitInput = function(input)
 		local out = {}
+		local keep_parsing = true
+
+		repeat
+			local var_begin, var_end = input:find("^[^,]+")
+			keep_parsing = var_begin ~= nil
+
+			if var_begin then
+				local var = input:sub(var_begin, var_end - var_begin + 1)
+				input = input:sub(var_end + 2)
+
+				var = var:gsub("\n", "")
+				var = var:gsub("\t", "")
+
+				out[#out + 1] = var
+			end
+		until(keep_parsing == false)
+
 		return out
 	end
 
-	print(inspect(pdata))
+	print("Parsing samplers...")
+	local pdata = ExtractData(samplers)
+	for i, j in ipairs(pdata.vals) do
+		if(j:len() > 0) then
+			print(inspect(SplitInput(j)))
+		end
+	end
+
+	print("Parsing textures...")
+	pdata = ExtractData(images)
+	for i, j in ipairs(pdata.vals) do
+		if(j:len() > 0) then
+			print(inspect(SplitInput(j)))
+		end
+	end
 
 	return output
 end
@@ -289,7 +319,8 @@ function Main(args)
 	GenShaderUnif(light_data, "UniformLight", 0, 2)
 
 	-- samplers & images
-	local image_data = ParseTextures(DefaultFragData.image)
+	local image_data = ParseTextures(DefaultFragData.samplers, 
+		DefaultFragData.images)
 end
 
 Main(UtilFuncs:ParseArgs())
