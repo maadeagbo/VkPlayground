@@ -19,16 +19,16 @@ local TypesGLSL = require "Scripts.TypesGLSL"
 local DefaultFragData = require "Scripts.DefaultFragData"
 
 local InputArgs = {
-	attrib = "",
-	unif   = "",
-	unifA  = "",
-	unifO  = "",
+	attrib  = "",
+	unif    = "",
+	unifA   = "",
+	unifO   = "",
+	fragO   = "",
+	fragDef = "",
 }
 
 function GenStructAttrib(data)
-	print("\n********************* Cpp(Attrib) *********************\n")
-
-	local out = "alignas(16) struct "..data.id.." {\n"
+	local out = "alignas(16) struct "..data.id.."Sh {\n"
 	for i, j in ipairs(data.cpp) do
 		out = out.."\t"..j.."\n"
 	end
@@ -45,12 +45,33 @@ function GenStructAttrib(data)
 	end
 	out = out.."};\n"
 
-	print(out)
+	return out
+end
+
+function SplitInput(input)
+	local out = {}
+	local keep_parsing = true
+
+	repeat
+		local var_begin, var_end = input:find("^[^,]+")
+		keep_parsing = var_begin ~= nil
+
+		if var_begin then
+			local var = input:sub(var_begin, var_end - var_begin + 1)
+			input = input:sub(var_end + 2)
+
+			var = var:gsub("\n", "")
+			var = var:gsub("\t", "")
+
+			out[#out + 1] = var
+		end
+	until(keep_parsing == false)
+
+	return out
 end
 
 function GenStructUnif(data, set_ndx, bind_ndx)
-	print("\n********************* Cpp(Unif) *********************\n")
-	local out = "alignas(16) struct "..data.id.." {\n"
+	local out = "alignas(16) struct "..data.id.."Sh {\n"
 	for i, j in ipairs(data.cpp) do
 		out = out.."\t"..j.."\n"
 	end
@@ -58,25 +79,46 @@ function GenStructUnif(data, set_ndx, bind_ndx)
 
 	out = out..string.format("#define SET_NDX_%s %d\n", data.id, set_ndx) 
 	out = out..string.format("#define BIND_NDX_%s %d\n", data.id, bind_ndx) 
+	
+	return out
+end
 
-	print(out)
+function GenStructTexture(data, set_ndx)
+	local out = "namespace TextureLayout {\n"
+	for i, j in ipairs(data.cpp) do
+		local name = data.shader[i]:gsub("^.* ", "")
+
+		out = out..string.format("\tconstexpr unsigned int %s_w = %d;\n",
+			name, j[1]) 
+		out = out..string.format("\tconstexpr unsigned int %s_h = %d;\n",
+			name, j[2]) 
+	end
+	out = out.."};\n"
+
+	for i, j in ipairs(data.shader) do
+		local name = j:gsub("^.* ", "")
+
+		out = out..string.format("#define SET_NDX_%s %d\n", name, set_ndx) 
+		out = out..string.format("#define BIND_NDX_%s %d\n", name, data.bind[i]) 
+		if data.shader[i]:find("^texture2D") then
+			out = out..string.format("#define TEX2D_COUNT_%s %d\n", name,
+				data.cpp[i][3]) 
+		end
+	end
+	
+	return out
 end
 
 function GenShader(data)
-	print("\n********************* Shader *********************\n")
-	
-	local out = "layout(std140, location = 0) in struct GeneratedVertex {\n"
+	local out = ""
 	for i, j in ipairs(data.shader) do
-		out = out.."\t"..j.."\n"
+		out = out..string.format("layout(location = %d) in %s\n", data.slot[i], j)
 	end
-	out = out.."} "..data.id..";\n"
 
-	print(out)
+	return out
 end
 
 function GenShaderUnif(data, name, set_ndx, bind_ndx)
-	print("\n********************* Shader(Unif) *********************\n")
-	
 	local out = string.format("layout(std140, set = %d, binding = %d) uniform %s {\n",
 		set_ndx, bind_ndx, name) 
 	for i, j in ipairs(data.shader) do
@@ -84,12 +126,10 @@ function GenShaderUnif(data, name, set_ndx, bind_ndx)
 	end
 	out = out.."} "..data.id..";\n"
 
-	print(out)
+	return out
 end
 
 function GenShaderUnifO_In(data)
-	print("\n********************* Shader(UnifO In) *********************\n")
-	
 	local out = ""
 	for i, j in ipairs(data.shader) do
 		local val = j
@@ -101,12 +141,10 @@ function GenShaderUnifO_In(data)
 		out = out..string.format("layout(location = %d) %s\n", data.slot[i], val)
 	end
 
-	print(out)
+	return out
 end
 
 function GenShaderUnifO_Out(data)
-	print("\n********************* Shader(UnifO Out) *********************\n")
-	
 	local out = ""
 	for i, j in ipairs(data.shader) do
 		local val = j
@@ -114,7 +152,24 @@ function GenShaderUnifO_Out(data)
 		out = out..string.format("layout(location = %d) out %s\n", data.slot[i], val)
 	end
 
-	print(out)
+	return out
+end
+
+function GenShaderTexture(data, set_ndx)
+	local out = "" 
+	for i, j in ipairs(data.shader) do
+		if j:find("^sampler") then
+			out = out..string.format(
+				"layout(set = %d, binding = %d) uniform %s;\n",
+				set_ndx, data.bind[i], j)
+		else
+			out = out..string.format(
+				"layout(set = %d, binding = %d) uniform %s[%d];\n",
+				set_ndx, data.bind[i], j, data.cpp[i][3])
+		end
+	end
+
+	return out
 end
 
 function ExtractData(data)
@@ -128,6 +183,7 @@ function ExtractData(data)
 		output.id = data:sub(id_begin, id_end - id_begin + 1)
 		output.id = output.id:gsub("\n", "")
 		output.id = output.id:gsub("\t", "")
+		output.id = output.id:gsub(" ", "")
 
 		data = data:sub(id_end + 2)
 	end
@@ -155,9 +211,6 @@ function ExtractData(data)
 end
 
 function ParseAttributes(data)
-	print("--------------------------------------------------------")
-	print("Parsing attributes...")
-
 	local output = {id = "MeshVertex", shader = {}, cpp = {}, slot = {}}
 	local pdata = ExtractData(data)
 
@@ -190,16 +243,10 @@ function ParseAttributes(data)
 		end
 	end
 
-	print(inspect(output))
-
-	GenStructAttrib(output)
-	GenShader(output)
+	return output
 end
 
 function ParseUniforms(data)
-	print("--------------------------------------------------------")
-	print("Parsing uniforms...")
-
 	local output = {id = "UniformData1", shader = {}, cpp = {}, slot = {}}
 	local pdata = ExtractData(data)
 
@@ -238,55 +285,64 @@ function ParseUniforms(data)
 		end
 	end
 
-	print(inspect(output))
+	return output
+end
+
+function ParseTextures(samplers, images, set_ndx, bind_ndx)
+	local output = {cpp = {}, shader = {}, bind = {}}
+
+	local nxt_bind_ndx = bind_ndx
+
+	local pdata = ExtractData(samplers)
+	for i, j in ipairs(pdata.vals) do
+		if(j:len() > 0) then
+			local vdata = SplitInput(j)
+
+			output.shader[#output.shader + 1] = string.format("sampler %s",
+				vdata[1])
+
+			output.cpp[#output.cpp + 1] = {
+				tonumber(vdata[2]),
+				tonumber(vdata[3]),}
+
+			output.bind[#output.bind + 1] = nxt_bind_ndx
+			nxt_bind_ndx = nxt_bind_ndx + 1
+		end
+	end
+
+	pdata = ExtractData(images)
+	for i, j in ipairs(pdata.vals) do
+		if(j:len() > 0) then
+			local vdata = SplitInput(j)
+
+			-- Always a texture array
+			if tonumber(vdata[4]) > 1 then
+				output.shader[#output.shader + 1] = string.format("texture2D %s",
+					vdata[1])
+
+				output.cpp[#output.cpp + 1] = {
+					tonumber(vdata[2]),
+					tonumber(vdata[3]),
+					tonumber(vdata[4]),}
+
+				output.bind[#output.bind + 1] = nxt_bind_ndx
+				nxt_bind_ndx = nxt_bind_ndx + vdata[4]
+			end
+		end
+	end
 
 	return output
 end
 
-function ParseTextures(samplers, images)
-	print("--------------------------------------------------------")
+function ParseDefines(data)
+	local pdata = ExtractData(data)
 
-	local output = {cpp = {}, shader = {}, slot = {}}
-
-	local SplitInput = function(input)
-		local out = {}
-		local keep_parsing = true
-
-		repeat
-			local var_begin, var_end = input:find("^[^,]+")
-			keep_parsing = var_begin ~= nil
-
-			if var_begin then
-				local var = input:sub(var_begin, var_end - var_begin + 1)
-				input = input:sub(var_end + 2)
-
-				var = var:gsub("\n", "")
-				var = var:gsub("\t", "")
-
-				out[#out + 1] = var
-			end
-		until(keep_parsing == false)
-
-		return out
-	end
-
-	print("Parsing samplers...")
-	local pdata = ExtractData(samplers)
+	local out = ""
 	for i, j in ipairs(pdata.vals) do
-		if(j:len() > 0) then
-			print(inspect(SplitInput(j)))
-		end
+		out = out.."#define "..j.."\n"
 	end
 
-	print("Parsing textures...")
-	pdata = ExtractData(images)
-	for i, j in ipairs(pdata.vals) do
-		if(j:len() > 0) then
-			print(inspect(SplitInput(j)))
-		end
-	end
-
-	return output
+	return out
 end
 
 function Main(args)
@@ -297,30 +353,67 @@ function Main(args)
 		end
 	end
 
+	local vertex_sh = "#version 450\n"
+	local fragment_sh = "#version 450\n"
+	local cpp_header = "#pragma once\n"
+
+	-- defines
+	local defs = ParseDefines(InputArgs.fragDef)
+
 	-- vertex attributes
-	ParseAttributes(InputArgs.attrib)
+	local attrib_data = ParseAttributes(InputArgs.attrib)
+	cpp_header = cpp_header.."\n"..GenStructAttrib(attrib_data)
+	vertex_sh = vertex_sh.."\n"..GenShader(attrib_data)
 
 	-- uniforms
 	local unif_data = ParseUniforms(InputArgs.unif)
-	GenStructUnif(unif_data, 0, 0)
-	GenShaderUnif(unif_data, "UniformGenA", 0, 0)
+	cpp_header = cpp_header.."\n"..GenStructUnif(unif_data, 0, 0)
+	vertex_sh = vertex_sh.."\n"..GenShaderUnif(unif_data, "UniformGenA", 0, 0)
 
 	unif_data = ParseUniforms(InputArgs.unifA)
-	GenStructUnif(unif_data, 0, 1)
-	GenShaderUnif(unif_data, "UniformGenB", 0, 1)
+	cpp_header = cpp_header.."\n"..GenStructUnif(unif_data, 0, 1)
+	vertex_sh = vertex_sh.."\n"..GenShaderUnif(unif_data, "UniformGenB", 0, 1)
+
+	unif_data = ParseUniforms(InputArgs.fragO)
+	fragment_sh = fragment_sh.."\n"..GenShaderUnifO_Out(unif_data)
 
 	unif_data = ParseUniforms(InputArgs.unifO)
-	GenShaderUnifO_In(unif_data)
-	GenShaderUnifO_Out(unif_data)
+	fragment_sh = fragment_sh.."\n"..GenShaderUnifO_In(unif_data)
+	vertex_sh = vertex_sh.."\n"..GenShaderUnifO_Out(unif_data)
 
 	-- lights
 	local light_data = ParseUniforms(DefaultFragData.light)
-	GenStructUnif(light_data, 0, 2)
-	GenShaderUnif(light_data, "UniformLight", 0, 2)
+	cpp_header = cpp_header.."\n"..GenStructUnif(light_data, 0, 2)
+	fragment_sh = fragment_sh.."\n"..GenShaderUnif(light_data, "UniformLight", 0, 2)
 
 	-- samplers & images
 	local image_data = ParseTextures(DefaultFragData.samplers, 
-		DefaultFragData.images)
+		DefaultFragData.images, 0, 3)
+	cpp_header = cpp_header.."\n"..GenStructTexture(image_data, 0)
+	fragment_sh = fragment_sh.."\n"..GenShaderTexture(image_data, 0)
+
+	-- Shader code
+	local vert_code = UtilFuncs:DumpFileContents(ROOT_DIR..
+		"/src/Shaders/BasicMesh.vert")
+	local frag_code = UtilFuncs:DumpFileContents(ROOT_DIR..
+		"/src/Shaders/BasicMesh.frag")
+
+	print("--------------------------------------------------------")
+	local vert_dump = vertex_sh.."\n"..defs.."\n"..vert_code
+	print("Vertex shader:\n\n"..vert_dump)
+
+	print("--------------------------------------------------------")
+	local frag_dump = fragment_sh.."\n"..defs.."\n"..frag_code
+	print("Fragment shader:\n\n"..frag_dump)
+
+	print("--------------------------------------------------------")
+	print("C++ header:\n\n"..cpp_header.."\n"..defs.."\n")
+
+	print("--------------------------------------------------------")
+
+	UtilFuncs:DumpContentsToFile(ROOT_DIR.."/bin/generated.vert", vert_dump)
+	UtilFuncs:DumpContentsToFile(ROOT_DIR.."/bin/generated.frag", frag_dump)
+	UtilFuncs:DumpContentsToFile(ROOT_DIR.."/bin/GenShader.hpp", cpp_header..defs)
 end
 
 Main(UtilFuncs:ParseArgs())

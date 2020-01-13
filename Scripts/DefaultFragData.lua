@@ -1,6 +1,6 @@
 local DefaultFragData = {
 	light = [[ 
-		light:
+		Light:
 		mat4 light_space;
 		vec3 norm_direction;
 		vec3 position;
@@ -19,7 +19,7 @@ local DefaultFragData = {
 		sampler2k,2048,2048;
 	]],
 	images = [[
-		textures2k,2048,2048,16;
+		texbuffer2k,2048,2048,16;
 	]],
 }
 return DefaultFragData

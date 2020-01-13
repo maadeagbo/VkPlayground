@@ -103,6 +103,15 @@ function UtilFuncs:DumpFileContents( file_path )
 	return table.concat( file_contents, "\n" )
 end
 
+function UtilFuncs:DumpContentsToFile(file_path, contents)
+	local file = assert(io.open(file_path, "w"), "UtilFuncs:DumpContentsToFile :: Failed to open "..file_path)
+	assert(contents, "UtilFuncs:DumpContentsToFile :: Invalid file contents")
+
+	file:write(contents)
+
+	file:close()
+end
+
 function UtilFuncs:ExtractExtension( file )
 	return file:match("[^%.]+$")
 end
