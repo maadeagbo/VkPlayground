@@ -11,6 +11,12 @@
 - [x] Combine output into cpp header to visualize final version
 - [ ] Write vulkan code generator for creating & binding shader structures
 
+## Shader set management
+- [ ] Split shaders into 3 sets:
+	- 1 for scene view data : camera, environment
+	- 1 for texture data : samplers & textures bindless array
+	- 1 for dynamic uniform data (per obj data)
+
 ### Code gen
 - vertex shader spv
 - fragment shader spv
@@ -19,7 +25,7 @@
 	- [ ] VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE - descriptorCount
 - [ ] Always : rf_data->m_TriShaderDescrip.m_SetsCount = 5;
 - [ ] VGCreateDescriptorLayout :
-	- `f_data->m_TriShaderDescrip.m_Sets[ ` SET NDX ` ].m_SetBindings[ `BIND NDX` ] = {};`
+	- `f_data->m_TriShaderDescrip.m_Sets[ `SET NDX` ].m_SetBindings[ `BIND NDX` ] = {};`
       `rf_data->m_TriShaderDescrip.m_Sets[ `SET NDX` ].m_SetBindings[ `BIND NDX` ].m_BindIndex = `BIND NDX`;`
       `rf_data->m_TriShaderDescrip.m_Sets[ `SET NDX` ].m_SetBindings[ `BIND NDX` ].m_DescripType = VGDescrBinding::Types::k_Uniforms;`
       `rf_data->m_TriShaderDescrip.m_Sets[ `SET NDX` ].m_SetBindings[ `BIND NDX` ].m_ArraySize = 1;`
@@ -38,6 +44,17 @@
 	- .m_Offset         = offsetof(MeshVertex, position)
 	- .m_AttribFormat   = VK_FORMAT_R32G32B32_SFLOAT
 - [ ] rf_data->m_TriShaderDescrip.m_Sets :
+
+---
+
+### Code gen structs
+- [x] VGShaderObj
+- [x] VGDescrPool
+- [x] VGDescrSet
+- [ ] VGVertexBuffer
+- [ ] VGVertexAttrObj
+- [ ] VGBufferPool
+- [ ] VGBufferObj
 
 ---
 
